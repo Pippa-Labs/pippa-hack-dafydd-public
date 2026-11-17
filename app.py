@@ -1,40 +1,21 @@
-"""Your app. Replace this with whatever you are building.
+"""App Finder: says which apps can do a job, and lists the apps there are.
 
-The shape never changes, whatever your app does:
+The list of apps is `apps.json`, beside this file, copied by hand from the
+Apps page on the day in its `taken` field. An app is told nothing about who is
+asking and cannot sign in, so it cannot read the live catalogue; the list goes
+out of date whenever an app is added or changed, and each answer says how old
+it is.
 
-    class App:
-        manifest  -> the parsed manifest.yaml sitting next to this file
-        handle(call) -> Result
-
-`handle` is called once per request and must return a `Result` whose `data`
-matches the `output` your manifest declares for that outcome — exactly: every
-declared field present, nothing extra, right types. The runtime checks it and
-refuses anything that does not match, which is deliberate. An app that can
-return surprise fields is an app Pippa cannot describe to a user before they
-install it.
-
-Three things worth knowing before you start:
-
-**You get the inputs, and nothing about who asked.** No user id, no account,
-no conversation. `call.inputs` is what Pippa extracted from the message;
-besides it, `call.context` carries only the time, an id for your logs, and
-whether the person picked your app by name. This is on purpose: your app
-cannot leak what it was never given.
-
-**You keep nothing.** A fresh copy of this class is built for every call and
-thrown away afterwards. Writing to a file or a global will appear to work and
-then silently stop, because the next call may be on a different machine.
-
-**Errors are part of the design.** Raise `AgentAppError` with a `user_message`
-when you cannot answer. That message is the one a user may see; everything
-else — the exception type, the traceback — stays in the logs.
+Matching is deliberately plain: the words of the job are cut down to rough
+stems and compared with each app's name, its hand-written keywords and the
+first sentence of its summary, in that order of weight.
 """
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+import json
+import re
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from pippa_agentapp_sdk import (
     AgentAppError,
@@ -46,22 +27,72 @@ from pippa_agentapp_sdk import (
 )
 
 MANIFEST_PATH = Path(__file__).with_name("manifest.yaml")
+CATALOGUE = json.loads(Path(__file__).with_name("apps.json").read_text("utf-8"))
+
+#: How many apps a search returns at most.
+MAX_RESULTS = 3
+
+#: A match needs at least this score: one keyword, or one word of a name. A
+#: single word shared with a summary is a coincidence, not a match.
+MIN_SCORE = 2
+
+NAME_WEIGHT, KEYWORD_WEIGHT, SUMMARY_WEIGHT = 3, 2, 1
+
+#: Words that say nothing about which app is wanted: ordinary words, and the
+#: words every summary and every question about apps uses.
+IGNORED = frozenset("""
+a an the my me i im is are was were be been do does did have has had of on in
+at to for with and or but if it its this that these those so just please can
+could would will from into by as any some what whats which who where when why
+how much many long there you your app apps work works out say says tell find
+finds help get know want need use something thing anything way named name
+nothing anywhere send sent time
+""".split())
+
+_WORD = re.compile(r"[a-z0-9]+")
 
 
-class CannotReadDate(AgentAppError):
-    """Raised when the message did not contain a date we can work with."""
-
-    # What a user may be shown. Write it as a sentence, not an error code.
-    user_message = "I could not work out which date you meant."
+class NoTask(AgentAppError):
+    user_message = (
+        "Tell me what you want an app to do, for example \"convert pounds to "
+        "euros\", or ask what apps there are."
+    )
     retryable = False
 
 
-class App:
-    """A small, complete example: count the days until a date."""
+class UnknownAuthor(AgentAppError):
+    user_message = "I do not know an author with that name."
+    retryable = False
 
+
+def _stem(word: str) -> str:
+    """Cut a word down far enough that "converts" and "converter" meet."""
+    for suffix in ("ing", "ers", "er", "ed", "es", "s"):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            word = word[: -len(suffix)]
+            break
+    if len(word) > 3 and word[-1] == word[-2] and word[-1] not in "aeiou":
+        word = word[:-1]            # splitting -> splitt -> split
+    if len(word) > 3 and word.endswith("e"):
+        word = word[:-1]            # scale, scaler, scaling -> scal
+    return word
+
+
+def _stems(text: str) -> set[str]:
+    words = (w for w in _WORD.findall(text.lower()) if w not in IGNORED)
+    return {s for s in map(_stem, words) if s not in IGNORED}
+
+
+def _first_sentence(text: str) -> str:
+    return text.split(". ")[0].rstrip(".") + "."
+
+
+def _label(entry: dict) -> str:
+    return f"{entry['name']}, from {entry['author']}"
+
+
+class App:
     def __init__(self) -> None:
-        # Validated at construction, so an app whose manifest is wrong fails
-        # immediately and loudly rather than on some later call.
         self._manifest = validate_manifest(load_manifest_file(MANIFEST_PATH))
 
     @property
@@ -69,110 +100,90 @@ class App:
         return self._manifest
 
     def handle(self, call: Call) -> Result:
-        """One request in, one Result out.
+        if call.outcome_id == "apps.find":
+            return self._find((call.inputs.get("task") or "").strip())
+        if call.outcome_id == "apps.list":
+            return self._list((call.inputs.get("author") or "").strip())
+        raise AgentAppError(f"this app cannot do {call.outcome_id!r}")
 
-        `call.outcome_id` says which of your manifest's outcomes was asked
-        for. With one outcome you can ignore it; with several, branch on it.
-        """
-        if call.outcome_id != "days.until":
-            raise AgentAppError(f"this app cannot do {call.outcome_id!r}")
+    def _find(self, task: str) -> Result:
+        wanted = _stems(task)
+        if not wanted:
+            raise NoTask(f"no job in {task!r}")
 
-        text = (call.inputs.get("date") or "").strip()
-        if not text:
-            # The manifest tells the extractor to send an empty string rather
-            # than guess, so this is the ordinary "they did not say" path.
-            #
-            # A missing or unreadable date (here, and in `_parse` below) is
-            # the only thing this app refuses for, which is why it never reads
-            # `call.context.explicit`, True when the person picked the app
-            # with @. That refusal is right whoever chose the app; the test
-            # that says so is in test_app.py.
-            raise CannotReadDate("no date in the message")
+        scored = [(self._score(entry, wanted), entry) for entry in CATALOGUE["apps"]]
+        matches = sorted(
+            ((score, entry) for score, entry in scored if score >= MIN_SCORE),
+            key=lambda pair: (-pair[0], pair[1]["name"]),
+        )[:MAX_RESULTS]
 
-        # `call.context.now` is the current time, supplied by the runtime
-        # rather than read from the clock. That is what makes an app testable:
-        # a test can say what "now" is.
-        today = self._today(call)
-        target = self._parse(text, today)
-        difference = (target - today).days
+        data = {
+            "matched": len(matches),
+            "apps": [
+                f"{_label(entry)}: {_first_sentence(entry['summary'])}"
+                for _, entry in matches
+            ],
+            "catalogue_size": len(CATALOGUE["apps"]),
+            "catalogue_date": CATALOGUE["taken"],
+        }
+        # Only a clear winner is named as the best match; a tie is not one.
+        if len(matches) == 1 or (matches and matches[0][0] > matches[1][0]):
+            data["best_match"] = matches[0][1]["name"]
 
+        return Result(data=data, narrative=self._find_sentence(matches, data))
+
+    @staticmethod
+    def _score(entry: dict, wanted: set[str]) -> int:
+        name = _stems(entry["name"])
+        keywords = _stems(" ".join(entry["keywords"]))
+        summary = _stems(_first_sentence(entry["summary"]))
+        score = 0
+        for stem in wanted:
+            if stem in name:
+                score += NAME_WEIGHT
+            elif stem in keywords:
+                score += KEYWORD_WEIGHT
+            elif stem in summary:
+                score += SUMMARY_WEIGHT
+        return score
+
+    @staticmethod
+    def _find_sentence(matches: list, data: dict) -> str:
+        if not matches:
+            return (
+                f"None of the {data['catalogue_size']} apps in the list taken "
+                f"on {data['catalogue_date']} looks able to do that."
+            )
+        names = [entry["name"] for _, entry in matches]
+        if "best_match" in data:
+            return f"{data['best_match']} looks like the app for that."
+        if len(names) == 2:
+            return f"{names[0]} and {names[1]} could both help."
+        return f"{', '.join(names[:-1])} and {names[-1]} could all help."
+
+    def _list(self, author: str) -> Result:
+        entries = CATALOGUE["apps"]
+        if author:
+            entries = [e for e in entries if e["author"].lower() == author.lower()]
+            if not entries:
+                error = UnknownAuthor(f"no apps from {author!r}")
+                authors = sorted({e["author"] for e in CATALOGUE["apps"]})
+                error.user_message = (
+                    f"I do not know an author called {author}. The authors I "
+                    f"know are {', '.join(authors)}."
+                )
+                raise error
+
+        labels = sorted(_label(e) for e in entries)
+        who = f" from {entries[0]['author']}" if author else ""
         return Result(
             data={
-                "days": abs(difference),
-                "target_date": target.isoformat(),
-                "weekday": target.strftime("%A"),
-                "already_passed": difference < 0,
+                "count": len(labels),
+                "apps": labels,
+                "catalogue_date": CATALOGUE["taken"],
             },
-            # Optional. One plain sentence Pippa may use when it writes its
-            # reply. Say what you found, not what you did.
-            narrative=self._sentence(target, difference),
+            narrative=(
+                f"There are {len(labels)} apps{who} in the list taken on "
+                f"{CATALOGUE['taken']}."
+            ),
         )
-
-    @staticmethod
-    def _today(call: Call) -> date:
-        """The user's today, not the server's.
-
-        A server in UTC and a user in Auckland disagree about what day it is
-        for twelve hours out of every twenty-four, and "how many days until"
-        is exactly the question that notices.
-        """
-        # No try/except around ZoneInfo, and that is the point: the manifest
-        # declares this input as `type: timezone`, so the runtime has already
-        # rejected anything that is not a real IANA zone before your code
-        # runs. Declaring the right type is cheaper than validating by hand,
-        # and the user gets a better error.
-        zone = call.inputs.get("timezone")
-        moment: datetime = call.context.now
-        if zone:
-            moment = moment.astimezone(ZoneInfo(zone))
-        return moment.date()
-
-    @staticmethod
-    def _parse(text: str, today: date) -> date:
-        """Turn what the user wrote into a date.
-
-        Deliberately small — real date parsing is its own project. Handles
-        `YYYY-MM-DD`, `25 December`, `December 25` and a bare day number.
-        """
-        cleaned = text.replace(",", " ").strip()
-
-        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
-            try:
-                return datetime.strptime(cleaned, fmt).date()
-            except ValueError:
-                continue
-
-        for fmt in ("%d %B", "%B %d", "%d %b", "%b %d"):
-            try:
-                parsed = datetime.strptime(cleaned, fmt).date()
-            except ValueError:
-                continue
-            # A bare day and month has no year. "25 December" asked in
-            # February means this year; asked in December means this year too,
-            # until it has passed, and then it means next year.
-            candidate = parsed.replace(year=today.year)
-            if candidate < today:
-                candidate = candidate.replace(year=today.year + 1)
-            return candidate
-
-        if cleaned.lower() == "tomorrow":
-            return today + timedelta(days=1)
-
-        raise CannotReadDate(f"could not parse {text!r} as a date")
-
-    @staticmethod
-    def _sentence(target: date, difference: int) -> str:
-        # Built by hand rather than with `%-d`, which is a GNU extension: it
-        # raises ValueError on Windows, where half of you are developing, and
-        # the failure would only show up at the last line of a working app.
-        pretty = (
-            f"{target.strftime('%A')} {target.day} "
-            f"{target.strftime('%B')} {target.year}"
-        )
-        if difference == 0:
-            return f"That is today, {pretty}."
-        if difference < 0:
-            return f"{pretty} was {abs(difference)} days ago."
-        if difference == 1:
-            return f"{pretty} is tomorrow."
-        return f"There are {difference} days until {pretty}."

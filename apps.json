@@ -1,0 +1,107 @@
+{
+  "taken": "2026-11-17",
+  "apps": [
+    {
+      "name": "Pippa Diary",
+      "author": "Pippa Labs",
+      "summary": "Answers questions about your calendar. Reads only — it never changes anything in your diary.",
+      "keywords": ["calendar", "diary", "appointment", "meeting", "event", "busy", "free", "agenda"]
+    },
+    {
+      "name": "Pippa Web Search",
+      "author": "Pippa Labs",
+      "summary": "Searches the web and the news when you ask about something current, and answers with links to the sources.",
+      "keywords": ["web", "internet", "online", "news", "search", "look up", "latest", "current events"]
+    },
+    {
+      "name": "Crime Near a Place",
+      "author": "Hackathon Demos",
+      "summary": "Counts the street-level crimes reported near a UK place or postcode in the most recent published month.",
+      "keywords": ["crime", "police", "burglary", "theft", "safe", "safety", "neighbourhood", "area", "postcode"]
+    },
+    {
+      "name": "Sunrise and Sunset",
+      "author": "Hackathon Demos",
+      "summary": "Works out what time the sun rises and sets in a well-known city, and how many hours of daylight it gets, for any date you name.",
+      "keywords": ["sunrise", "sunset", "sun", "dawn", "dusk", "daylight", "dark", "light"]
+    },
+    {
+      "name": "Next Dry Spell",
+      "author": "Hackathon Demos",
+      "summary": "Finds the next run of hours with no rain at a named place, and says the rain chance threshold it used.",
+      "keywords": ["rain", "dry", "weather", "forecast", "umbrella", "shower", "wet", "raining"]
+    },
+    {
+      "name": "Flight Time",
+      "author": "Hackathon Demos",
+      "summary": "Estimates how long a flight between two airports or cities takes, and how far apart they are.",
+      "keywords": ["flight", "fly", "flying", "plane", "airport", "distance", "miles", "kilometres"]
+    },
+    {
+      "name": "Currency Converter",
+      "author": "Hackathon Demos",
+      "summary": "Turns an amount of money into another currency at the live European Central Bank reference rate, and always says which day that rate is from.",
+      "keywords": ["currency", "money", "exchange rate", "convert", "pounds", "euros", "dollars", "yen", "forex"]
+    },
+    {
+      "name": "ISBN Validator",
+      "author": "Hackathon Demos",
+      "summary": "Checks whether a 10 or 13 digit book number is a real ISBN using the check digit at the end of it, converts an ISBN between its 10 digit and 13 digit forms, and names the registration group it belongs to.",
+      "keywords": ["isbn", "book", "barcode", "check digit", "validate", "valid"]
+    },
+    {
+      "name": "Loan Repayment",
+      "author": "Hackathon Demos",
+      "summary": "Works out the monthly repayment on a loan or a mortgage from the amount borrowed, the annual interest rate and the term, and totals the interest and the full amount repaid.",
+      "keywords": ["loan", "mortgage", "repayment", "interest", "borrow", "monthly payment", "finance", "apr"]
+    },
+    {
+      "name": "Meet in the Middle",
+      "author": "Hackathon Demos",
+      "summary": "Works out the geographic midpoint between two named places and how far each person travels to meet there.",
+      "keywords": ["midpoint", "meet", "halfway", "middle", "between", "meeting point"]
+    },
+    {
+      "name": "Near Earth Asteroids",
+      "author": "Hackathon Demos",
+      "summary": "Lists the asteroids and near earth objects passing close to Earth on a given date or range of days.",
+      "keywords": ["asteroid", "space", "comet", "meteor", "nasa", "earth", "astronomy"]
+    },
+    {
+      "name": "Password Strength",
+      "author": "Hackathon Demos",
+      "summary": "Rates how strong a password is, estimates how long it would take to crack, and says what would make it stronger.",
+      "keywords": ["password", "secure", "security", "crack", "strong", "hacked"]
+    },
+    {
+      "name": "Text Readability",
+      "author": "Hackathon Demos",
+      "summary": "Measures a piece of writing you paste in: counts the words, sentences and characters, estimates how many minutes it takes to read aloud or silently, and scores how hard it is to understand.",
+      "keywords": ["readability", "reading", "word count", "words", "text", "writing", "essay", "sentences"]
+    },
+    {
+      "name": "Recipe Scaler",
+      "author": "Hackathon Demos",
+      "summary": "Rescales a recipe's ingredient quantities from the number of servings it makes to the number you need, and rounds every amount to something you can actually measure in a kitchen.",
+      "keywords": ["recipe", "cooking", "baking", "servings", "ingredients", "portions", "scale", "kitchen"]
+    },
+    {
+      "name": "Bill Splitter",
+      "author": "Hackathon Demos",
+      "summary": "Works out what each person pays when a bill is shared, adds an optional tip or service charge, and says where the odd pennies land.",
+      "keywords": ["bill", "split", "tip", "restaurant", "share", "service", "dinner", "pay"]
+    },
+    {
+      "name": "Unit Converter",
+      "author": "Hackathon Demos",
+      "summary": "Converts a measurement from one unit to another across length, weight, temperature, volume and speed.",
+      "keywords": ["unit", "convert", "conversion", "measurement", "celsius", "fahrenheit", "kilograms", "pounds", "miles", "kilometres", "inches", "litres"]
+    },
+    {
+      "name": "Wikipedia Attention",
+      "author": "Hackathon Demos",
+      "summary": "Counts how many times a Wikipedia article is read each day, and says whether attention is rising or falling.",
+      "keywords": ["wikipedia", "page views", "views", "popular", "attention", "trending", "article"]
+    }
+  ]
+}
